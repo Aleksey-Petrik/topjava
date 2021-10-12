@@ -4,7 +4,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.javawebinar.topjava.model.Meal;
 import ru.javawebinar.topjava.model.MealTo;
+import ru.javawebinar.topjava.storage.ListStorage;
+import ru.javawebinar.topjava.storage.Storage;
 import ru.javawebinar.topjava.util.MealsUtil;
+import ru.javawebinar.topjava.util.TimeUtil;
 
 import javax.servlet.ServletConfig;
 import javax.servlet.ServletException;
@@ -12,26 +15,34 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.*;
 
 public class MealServlet extends HttpServlet {
     private static final Logger log = LoggerFactory.getLogger(MealServlet.class);
-    private List<Meal> meals;
+    private Storage storage;
 
     @Override
     public void init(ServletConfig config) throws ServletException {
         super.init(config);
-        meals = MealsUtil.getTestData();
+        storage = new ListStorage(MealsUtil.getTestData());
     }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         log.debug("redirect to meals");
-        String uuid = req.getParameter("uuid");
+
+        int uuid;
+        try {
+            uuid = Integer.parseInt(req.getParameter("uuid"));
+        } catch (NumberFormatException e) {
+            uuid = 0;
+        }
+
         String action = req.getParameter("action");
 
-        List<MealTo> mealsTo = MealsUtil.filteredByStreams(meals, LocalTime.of(0, 0), LocalTime.of(23, 59), MealsUtil.CALORIES_PER_DAY);
+        List<MealTo> mealsTo = MealsUtil.filteredByStreams(storage.getList(), LocalTime.of(0, 0), LocalTime.of(23, 59), MealsUtil.CALORIES_PER_DAY);
 
         if (action == null) {
             req.setAttribute("meals", mealsTo);
@@ -39,24 +50,48 @@ public class MealServlet extends HttpServlet {
             return;
         }
 
+        Meal meal = null;
         switch (action) {
             case "delete":
-                meals.removeIf(meal -> meal.getDateTime().toString().equals(uuid));
-/*
-                Meal mealDelete = meals.stream().filter(meal -> meal.getDateTime().toString().equals(uuid)).findFirst().get();
-                if (mealDelete != null) {
-                    meals.remove(mealDelete);
-                }
-*/
+                storage.delete(uuid);
                 resp.sendRedirect("meals");
                 return;
+            case "edit":
+                meal = storage.get(uuid);
+                break;
+            case "add":
+                meal = new Meal(ListStorage.generateID(), LocalDateTime.now(), "", 0);
+                break;
         }
-
-        super.doGet(req, resp);
+        req.setAttribute("meal", meal);
+        req.getRequestDispatcher("/edit.jsp").forward(req, resp);
     }
 
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
-        super.doPost(req, resp);
+        req.setCharacterEncoding("UTF-8");
+        int uuid = Integer.parseInt(req.getParameter("uuid"));
+
+        if (uuid != 0) {
+            Meal oldMeal;
+            try {
+                oldMeal = storage.get(uuid);
+            } catch (NoSuchElementException e) {
+                oldMeal = null;
+            }
+
+            String dateTime = req.getParameter("dateTime");
+            String descriptions = req.getParameter("descriptions");
+            String calories = req.getParameter("calories");
+
+            Meal newMeal = new Meal(uuid, TimeUtil.parse(dateTime), descriptions, Integer.parseInt(calories));
+
+            if (oldMeal == null) {
+                storage.add(newMeal);
+            } else if (!newMeal.equals(oldMeal)) {
+                storage.update(newMeal);
+            }
+        }
+        resp.sendRedirect("meals");
     }
 }
