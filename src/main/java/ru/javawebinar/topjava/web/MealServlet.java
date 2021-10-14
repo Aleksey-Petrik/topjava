@@ -16,7 +16,6 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.util.*;
 
 public class MealServlet extends HttpServlet {
@@ -32,6 +31,7 @@ public class MealServlet extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         log.debug("redirect to meals");
+        String action = req.getParameter("action");
 
         int uuid;
         try {
@@ -40,9 +40,7 @@ public class MealServlet extends HttpServlet {
             uuid = 0;
         }
 
-        String action = req.getParameter("action");
-
-        List<MealTo> mealsTo = MealsUtil.filteredByStreams(storage.getList(), LocalTime.of(0, 0), LocalTime.of(23, 59), MealsUtil.CALORIES_PER_DAY);
+        List<MealTo> mealsTo = MealsUtil.getTos(storage.getList(), MealsUtil.CALORIES_PER_DAY);
 
         if (action == null) {
             req.setAttribute("meals", mealsTo);
@@ -53,6 +51,7 @@ public class MealServlet extends HttpServlet {
         Meal meal = null;
         switch (action) {
             case "delete":
+                log.info("Delete id = {}", uuid);
                 storage.delete(uuid);
                 resp.sendRedirect("meals");
                 return;
@@ -68,7 +67,7 @@ public class MealServlet extends HttpServlet {
     }
 
     @Override
-    protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+    protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         req.setCharacterEncoding("UTF-8");
         int uuid = Integer.parseInt(req.getParameter("uuid"));
 
@@ -88,8 +87,10 @@ public class MealServlet extends HttpServlet {
 
             if (oldMeal == null) {
                 storage.add(newMeal);
+                log.info("Add {}", newMeal);
             } else if (!newMeal.equals(oldMeal)) {
                 storage.update(newMeal);
+                log.info("Update {}", newMeal);
             }
         }
         resp.sendRedirect("meals");

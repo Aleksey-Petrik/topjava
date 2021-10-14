@@ -4,17 +4,18 @@ import ru.javawebinar.topjava.model.Meal;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.Objects;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 public class ListStorage implements Storage {
-    private static AtomicInteger id = new AtomicInteger(0);
-    private ConcurrentHashMap<Integer, Meal> storage = new ConcurrentHashMap<>();
+    private static final AtomicInteger id = new AtomicInteger(0);
+    private ConcurrentMap<Integer, Meal> storage;
 
     public ListStorage(List<Meal> storage) {
-        for (Meal meal : storage) {
-            this.storage.put(meal.getId(), meal);
-        }
+        Objects.requireNonNull(storage);
+        this.storage = storage.stream().collect(Collectors.toConcurrentMap(Meal::getId, meal -> meal));
     }
 
     @Override
